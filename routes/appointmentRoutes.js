@@ -7,7 +7,7 @@ import {
   getUserAppointments,
   getDoctorAppointments,
   deleteAppointment,
-  approveAppointment // imported new controller method
+  approveAppointment
 } from '../controllers/appointmentController.js';
 
 const router = express.Router();
@@ -18,8 +18,8 @@ router.get('/:doctorId/slots', authenticateJWT, getAvailableSlots);
 // Book an appointment
 router.post('/:doctorId', authenticateJWT, bookAppointment);
 
-// Get appointments for logged-in user
-router.get('/user/:userId', authenticateJWT, getUserAppointments);
+// Get appointments for logged-in user (removed :userId param)
+router.get('/user', authenticateJWT, getUserAppointments);
 
 // Get appointments for logged-in doctor
 router.get('/doctor', authenticateJWT, getDoctorAppointments);

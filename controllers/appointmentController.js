@@ -49,7 +49,14 @@ export const getAvailableSlots = async (req, res) => {
 export const bookAppointment = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const { userId, scheduledFor, notes } = req.body;
+    const { scheduledFor, notes } = req.body;
+
+    // FIX: Extract userId from JWT token (set by authenticateJWT middleware)
+    const userId = req.user.userId || req.user.id || req.user._id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User ID not found in token" });
+    }
 
     const appointmentDate = new Date(scheduledFor);
     if (isNaN(appointmentDate.getTime())) {
@@ -65,14 +72,17 @@ export const bookAppointment = async (req, res) => {
     if (existing) return res.status(400).json({ message: "Slot already booked" });
 
     const appointment = await Appointment.create({
-      user: userId,
+      user: userId, // Use userId from JWT token
       doctor: doctorId,
       scheduledFor: appointmentDate,
       notes,
       status: "pending"
     });
 
-    res.status(201).json({ message: "Appointment booked successfully, pending doctor approval", appointment });
+    res.status(201).json({ 
+      message: "Appointment booked successfully, pending doctor approval", 
+      appointment 
+    });
 
   } catch (err) {
     if (err.code === 11000) {
@@ -130,20 +140,18 @@ export const cancelAppointment = async (req, res) => {
 // Get appointments for a user
 export const getUserAppointments = async (req, res) => {
   try {
-    const { userId } = req.params;
+    // FIX: Extract userId from JWT token instead of URL params
+    const userId = req.user.userId || req.user.id || req.user._id;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: 'Invalid userId format' });
     }
 
     const appointments = await Appointment.find({ user: userId })
       .populate('doctor', 'name specialty');
 
-    if (!appointments.length) {
-      return res.status(404).json({ message: 'No appointments found' });
-    }
-
-    res.json({ appointments });
+    // Don't return 404 for empty arrays, just return empty array
+    res.json({ appointments: appointments || [] });
   } catch (error) {
     console.error('Error in getUserAppointments:', error);
     res.status(500).json({ message: 'Server error' });
@@ -153,22 +161,27 @@ export const getUserAppointments = async (req, res) => {
 // Get appointments for a doctor including pending and booked
 export const getDoctorAppointments = async (req, res) => {
   try {
-    const doctorId = new mongoose.Types.ObjectId(req.user.doctorId); // Use new keyword!
+    // FIX: Extract doctorId from JWT token
+    const doctorId = req.user.doctorId || req.user.id || req.user._id;
+    
+    if (!doctorId) {
+      return res.status(401).json({ message: "Doctor ID not found in token" });
+    }
+
     console.log("Doctor ID being queried:", doctorId);
 
     const appointments = await Appointment.find({
-      doctor: doctorId,
+      doctor: new mongoose.Types.ObjectId(doctorId),
       status: { $in: ["pending", "booked"] }
     }).populate('user', 'name email');
 
     console.log("Appointments found:", appointments.length);
-    res.json({ appointments });
+    res.json({ appointments: appointments || [] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // Delete an appointment (optional)
 export const deleteAppointment = async (req, res) => {
