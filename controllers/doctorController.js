@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Doctor } from '../models/Doctor.js';
+import Doctor from '../models/Doctor.js';
 
 // Register Doctor
 export const registerDoctor = async (req, res) => {
@@ -46,7 +46,8 @@ export const getDoctorById = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-// controllers/doctorController.js
+
+// Get doctor profile (authenticated)
 export const getDoctorProfile = async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.user.doctorId).select('-password');
@@ -57,9 +58,9 @@ export const getDoctorProfile = async (req, res) => {
   }
 };
 
+// Update doctor profile
 export const updateDoctorProfile = async (req, res) => {
   try {
-    // Only allow certain fields to be updated
     const {
       name,
       specialty,
@@ -71,7 +72,7 @@ export const updateDoctorProfile = async (req, res) => {
       fee,
       image,
       status,
-      location // Expect `location` as { type: 'Point', coordinates: [lng, lat] }
+      location
     } = req.body;
 
     const updateFields = {
@@ -87,15 +88,17 @@ export const updateDoctorProfile = async (req, res) => {
       status
     };
 
-    // Only include location if provided
-    if (location && Array.isArray(location.coordinates)) {
-      updateFields['location.type'] = location.type;
-      updateFields['location.coordinates'] = location.coordinates;
+    // Update location if provided
+    if (location && location.coordinates && Array.isArray(location.coordinates)) {
+      updateFields.location = {
+        type: 'Point',
+        coordinates: location.coordinates
+      };
     }
 
     const updated = await Doctor.findByIdAndUpdate(
       req.user.doctorId,
-      updateFields, // dot-notation for nested fields
+      updateFields,
       { new: true, runValidators: true, select: '-password' }
     );
 
@@ -106,7 +109,7 @@ export const updateDoctorProfile = async (req, res) => {
   }
 };
 
-
+// Get all doctors (basic - no location filter)
 export const getAllDoctors = async (req, res) => {
   try {
     const doctors = await Doctor.find().select('-password');
@@ -114,5 +117,168 @@ export const getAllDoctors = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+};
+
+// NEW: Search doctors by proximity (within 5km radius)
+export const searchDoctorsByProximity = async (req, res) => {
+  try {
+    const { longitude, latitude, specialty, maxDistance = 5000 } = req.query; // maxDistance in meters (default 5km)
+
+    // Validate coordinates
+    if (!longitude || !latitude) {
+      return res.status(400).json({ 
+        message: 'Longitude and latitude are required for proximity search' 
+      });
+    }
+
+    const lng = parseFloat(longitude);
+    const lat = parseFloat(latitude);
+
+    if (isNaN(lng) || isNaN(lat)) {
+      return res.status(400).json({ message: 'Invalid coordinates' });
+    }
+
+    // Build query
+    const query = {
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [lng, lat]
+          },
+          $maxDistance: parseInt(maxDistance) // in meters
+        }
+      }
+    };
+
+    // Add specialty filter if provided
+    if (specialty && specialty !== 'All') {
+      query.specialty = specialty;
+    }
+
+    // Find doctors near the location
+    const doctors = await Doctor.find(query).select('-password');
+
+    // Calculate exact distance for each doctor
+    const doctorsWithDistance = doctors.map(doctor => {
+      const distance = calculateDistance(
+        lat, lng,
+        doctor.location.coordinates[1], doctor.location.coordinates[0]
+      );
+
+      return {
+        ...doctor.toObject(),
+        distance: parseFloat(distance.toFixed(2)) // distance in km
+      };
+    });
+
+    res.json({
+      count: doctorsWithDistance.length,
+      doctors: doctorsWithDistance
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// NEW: Advanced search with aggregation pipeline (includes distance calculation)
+export const searchDoctorsAdvanced = async (req, res) => {
+  try {
+    const { longitude, latitude, specialty, maxDistance = 5000 } = req.query;
+
+    if (!longitude || !latitude) {
+      return res.status(400).json({ 
+        message: 'Longitude and latitude are required' 
+      });
+    }
+
+    const lng = parseFloat(longitude);
+    const lat = parseFloat(latitude);
+
+    // Build aggregation pipeline
+    const pipeline = [
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [lng, lat]
+          },
+          distanceField: 'distance',
+          maxDistance: parseInt(maxDistance), // meters
+          spherical: true,
+          distanceMultiplier: 0.001 // Convert to kilometers
+        }
+      }
+    ];
+
+    // Add specialty filter if needed
+    if (specialty && specialty !== 'All') {
+      pipeline.push({
+        $match: { specialty: specialty }
+      });
+    }
+
+    // Exclude password field
+    pipeline.push({
+      $project: { password: 0 }
+    });
+
+    const doctors = await Doctor.aggregate(pipeline);
+
+    res.json({
+      count: doctors.length,
+      doctors: doctors.map(doc => ({
+        ...doc,
+        distance: parseFloat(doc.distance.toFixed(2))
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// Helper function: Calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
 }
+
+function toRad(degrees) {
+  return degrees * (Math.PI / 180);
+}
+
+// Get unique specialties
+// Get unique specialties (simpler version)
+export const getSpecialties = async (req, res) => {
+  try {
+    // Get all doctors
+    const doctors = await Doctor.find({}, 'specialty');
+    
+    // Extract unique specialties
+    const specialtiesSet = new Set();
+    doctors.forEach(doc => {
+      if (doc.specialty && doc.specialty.trim() !== '') {
+        specialtiesSet.add(doc.specialty.trim());
+      }
+    });
+    
+    // Convert to sorted array
+    const specialties = Array.from(specialtiesSet).sort();
+    
+    console.log('📋 Available specialties:', specialties);
+    res.json(specialties);
+  } catch (err) {
+    console.error('❌ Error fetching specialties:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
 

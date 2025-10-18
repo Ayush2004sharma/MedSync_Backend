@@ -1,10 +1,9 @@
-// models/Doctor.js
 import mongoose from 'mongoose';
 
 const doctorSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }, // Hash before save
+  password: { type: String, required: true },
   specialty: { type: String, required: true },
   qualifications: [String],
   bio: String,
@@ -43,10 +42,21 @@ const doctorSchema = new mongoose.Schema({
   fee: Number,
   profilePic: String,
   ratings: { type: Number, default: 0 },
-  reviews: [{ user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, rating: Number, comment: String }]
+  reviews: [{ 
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, 
+    rating: Number, 
+    comment: String 
+  }]
 }, { timestamps: true });
 
-// Geo-index for location-based search
+// Geospatial index for location-based search
 doctorSchema.index({ location: "2dsphere" });
 
-export const Doctor = mongoose.model('Doctor', doctorSchema);
+// Compound index for filtered location search (e.g., specialty + location)
+doctorSchema.index({ location: "2dsphere", specialty: 1 });
+
+// Additional index for status-based queries
+doctorSchema.index({ specialty: 1, status: 1 });
+
+ const Doctor = mongoose.model('Doctor', doctorSchema);
+export default Doctor;

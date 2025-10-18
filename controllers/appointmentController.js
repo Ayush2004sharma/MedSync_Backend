@@ -1,5 +1,5 @@
 import { Appointment } from '../models/Appointment.js';
-import { DoctorWeeklySchedule } from '../models/DoctorAvailabilty.js';
+
 import mongoose from 'mongoose';
 
 // Helper to format time slots

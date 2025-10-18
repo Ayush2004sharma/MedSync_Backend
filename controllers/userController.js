@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User.js';
+import User from '../models/User.js';
 import { Appointment } from '../models/Appointment.js';
 import mongoose from 'mongoose';
 
@@ -53,16 +53,29 @@ export const getUserProfile = async (req, res) => {
 // Update User Profile
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, dob, gender, phone, address, image } = req.body;
+    const { name, dob, gender, phone, address, image, location } = req.body;
+    
+    const updateFields = { name, dob, gender, phone, address, image };
+
+    // Update location if provided
+    if (location && location.coordinates && Array.isArray(location.coordinates)) {
+      updateFields.location = {
+        type: 'Point',
+        coordinates: location.coordinates
+      };
+    }
+
     const updated = await User.findByIdAndUpdate(
       req.user.userId,
-      { name, dob, gender, phone, address, image },
+      updateFields,
       { new: true, runValidators: true, select: '-password' }
     );
+    
     if (!updated) {
       console.error("User not found for update");
       return res.status(404).json({ message: 'User not found' });
     }
+    
     res.json({ message: 'Profile updated', user: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -145,6 +158,7 @@ export const getUserDashboard = async (req, res) => {
         gender: user.gender,
         address: user.address,
         image: user.image,
+        location: user.location, // Include location
         createdAt: user.createdAt
       },
       statistics: {

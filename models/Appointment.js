@@ -7,13 +7,12 @@ const appointmentSchema = new mongoose.Schema({
   status: { 
     type: String, 
     enum: ["pending", "booked", "cancelled", "completed", "rejected"], 
-    default: "pending"  // default changed to pending for new approval workflow
+    default: "pending"
   },
   notes: String,
 }, { timestamps: true });
 
-// Prevent double-booking: one doctor cannot have two appointments at the same time in "booked" status
-// To enforce that, consider adding a partial index filtering to booked status to allow multiple pending but only one booked
+// Prevent double-booking
 appointmentSchema.index(
   { doctor: 1, scheduledFor: 1 }, 
   { unique: true, partialFilterExpression: { status: "booked" } }
