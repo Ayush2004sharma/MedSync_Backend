@@ -1,8 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Doctor } from '../models/Doctor.js';
-import { DoctorWeeklySchedule } from '../models/DoctorAvailabilty.js';
-import { startOfDay, endOfDay } from 'date-fns';
+
 // Register Doctor
 export const registerDoctor = async (req, res) => {
   try {
@@ -107,32 +106,6 @@ export const updateDoctorProfile = async (req, res) => {
   }
 };
 
-export const findNearbyDoctors = async (req, res) => {
-  const { lat, lng, radius = 5000, specialty } = req.query;
-  if (!lat || !lng) return res.status(400).json({ message: "Missing lat/lng" });
-
-  const coords = [parseFloat(lng), parseFloat(lat)];
-
-  const geoQuery = {
-    location: {
-      $near: {
-        $geometry: { type: "Point", coordinates: coords },
-        $maxDistance: parseInt(radius),
-      },
-    },
-  };
-
-  if (specialty && specialty !== 'all') {
-    geoQuery.specialty = specialty; // make sure your model uses this field name
-  }
-
-  try {
-    const doctors = await Doctor.find(geoQuery);
-    res.json(doctors);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
 
 export const getAllDoctors = async (req, res) => {
   try {
@@ -143,59 +116,42 @@ export const getAllDoctors = async (req, res) => {
   }
 }
 
-// Create or update a doctor's weekly schedule
-export const upsertWeeklySchedule = async (req, res) => {
-  const { doctorId, schedule } = req.body;
-
-  if (!doctorId || !schedule) {
-    return res.status(400).json({ message: 'doctorId and schedule are required' });
-  }
-
+export const searchDoctors = async (req, res) => {
   try {
-    const updatedSchedule = await DoctorWeeklySchedule.findOneAndUpdate(
-      { doctor: doctorId },
-      { schedule },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
-    res.status(200).json({ message: 'Weekly schedule saved', schedule: updatedSchedule });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-// Get a doctor's weekly schedule
-export const getWeeklySchedule = async (req, res) => {
-  const doctorId = req.query.doctorId; // ✅ use query instead of params
-
-  if (!doctorId) return res.status(400).json({ message: 'doctorId is required' });
-
-  try {
-    const schedule = await DoctorWeeklySchedule.findOne({ doctor: doctorId })
-      .populate('doctor', 'name specialty');
-
-    if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
-
-    res.status(200).json({ schedule });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-};
-
-
-// Delete a doctor's weekly schedule
-export const deleteWeeklySchedule = async (req, res) => {
-  const { doctorId } = req.params;
-
-  try {
-    const deleted = await DoctorWeeklySchedule.findOneAndDelete({ doctor: doctorId });
-    if (!deleted) {
-      return res.status(404).json({ message: 'Schedule not found' });
+    const { specialty, city, lat, lng, maxDistance } = req.query;
+    
+    let query = {};
+    
+    // Filter by specialty if provided and not 'All'
+    if (specialty && specialty !== 'All') {
+      query.specialty = specialty;
     }
-    res.status(200).json({ message: 'Schedule deleted' });
+    
+    // Filter by city if provided
+    if (city) {
+      query.clinicAddress = { $regex: city, $options: 'i' }; // Case-insensitive search
+    }
+    
+    // Geospatial search if coordinates provided
+    if (lat && lng) {
+      query.location = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: maxDistance ? parseInt(maxDistance) : 50000 // Default 50km
+        }
+      };
+      
+      const doctors = await Doctor.find(query).select('-password');
+      return res.json(doctors);
+    }
+    
+    // Regular search without geolocation
+    const doctors = await Doctor.find(query).select('-password');
+    res.json(doctors);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: err.message });
   }
 };

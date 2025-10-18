@@ -1,5 +1,13 @@
 import express from 'express';
-import { registerDoctor, loginDoctor, getDoctorById, getDoctorProfile, updateDoctorProfile, findNearbyDoctors, getAllDoctors, upsertWeeklySchedule, getWeeklySchedule } from '../controllers/doctorController.js';
+import { 
+  registerDoctor, 
+  loginDoctor, 
+  getDoctorById, 
+  getDoctorProfile, 
+  updateDoctorProfile, 
+  getAllDoctors,
+  searchDoctors 
+} from '../controllers/doctorController.js';
 import { authenticateJWT } from '../middleware/authenticateJWT.js';
 
 const router = express.Router();
@@ -10,12 +18,8 @@ router.post('/login', loginDoctor);
 router.get('/profile', authenticateJWT, getDoctorProfile);
 router.patch('/profile/:id', authenticateJWT, updateDoctorProfile);
 
-router.get('/all', getAllDoctors); // MOVE ABOVE :id
-router.get('/nearby', findNearbyDoctors);
-
-router.post('/availability', upsertWeeklySchedule);       // Create/update
-router.get('/availability', getWeeklySchedule);  
-router.get('/:id', getDoctorById); // KEEP THIS LAST
-
+router.get('/search', searchDoctors); // Add search route
+router.get('/all', getAllDoctors);
+router.get('/:id', getDoctorById);
 
 export default router;
