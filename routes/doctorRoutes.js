@@ -8,7 +8,8 @@ import {
   getAllDoctors,
   searchDoctorsByProximity,
   searchDoctorsAdvanced,
-  getSpecialties  // Make sure this is imported
+  getSpecialties,  // Make sure this is imported
+  getSpecialtiesWithRatings
 } from '../controllers/doctorController.js';
 import { authenticateJWT } from '../middleware/authenticateJWT.js';
 
@@ -22,6 +23,7 @@ router.patch('/profile', authenticateJWT, updateDoctorProfile);
 
 // IMPORTANT: This must come BEFORE /all and /:id
 router.get('/specialties', getSpecialties);
+router.get('/specialties/ratings', getSpecialtiesWithRatings);
 
 router.get('/search/proximity', searchDoctorsByProximity);
 router.get('/search/advanced', searchDoctorsAdvanced);

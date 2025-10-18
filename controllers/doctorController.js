@@ -282,3 +282,83 @@ export const getSpecialties = async (req, res) => {
   }
 };
 
+
+// Get specialties with average ratings (calculated from reviews array)
+// Get top 5 specialties with highest average ratings
+// Get top 5 specialties with ratings AND one representative doctor from each
+export const getSpecialtiesWithRatings = async (req, res) => {
+  try {
+    const specialtiesData = await Doctor.aggregate([
+      // Step 1: Handle missing/null reviews arrays
+      {
+        $addFields: {
+          reviewsArray: { $ifNull: ["$reviews", []] }
+        }
+      },
+      // Step 2: Calculate average rating for each doctor
+      {
+        $addFields: {
+          avgRating: {
+            $cond: {
+              if: { $gt: [{ $size: "$reviewsArray" }, 0] },
+              then: { $avg: "$reviewsArray.rating" },
+              else: 0
+            }
+          }
+        }
+      },
+      // Step 3: Sort doctors by rating (highest first)
+      {
+        $sort: { avgRating: -1, createdAt: -1 }
+      },
+      // Step 4: Group by specialty and get the FIRST (highest rated) doctor
+      {
+        $group: {
+          _id: '$specialty',
+          avgRating: { $avg: '$avgRating' },
+          totalDoctors: { $sum: 1 },
+          totalReviews: { $sum: { $size: "$reviewsArray" } },
+          // Get the first (highest rated) doctor's details
+          doctorId: { $first: '$_id' },
+          doctorName: { $first: '$name' },
+          doctorImage: { $first: '$profilePic' }
+        }
+      },
+      // Step 5: Filter out empty specialties
+      {
+        $match: {
+          _id: { $ne: null, $ne: '' }
+        }
+      },
+      // Step 6: Sort by specialty rating (highest first)
+      {
+        $sort: { avgRating: -1 }
+      },
+      // Step 7: Limit to top 5 specialties
+      {
+        $limit: 5
+      },
+      // Step 8: Format output
+      {
+        $project: {
+          _id: 0,
+          specialty: '$_id',
+          rating: { $round: ['$avgRating', 1] },
+          totalDoctors: 1,
+          totalReviews: 1,
+          doctorId: 1,
+          doctorName: 1,
+          doctorImage: 1
+        }
+      }
+    ]);
+
+    console.log('📊 Top 5 Specialties with representative doctors:', specialtiesData);
+    res.json(specialtiesData);
+  } catch (err) {
+    console.error('❌ Error fetching specialties with ratings:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
