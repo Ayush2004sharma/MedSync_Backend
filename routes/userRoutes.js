@@ -4,7 +4,8 @@ import {
   loginUser, 
   getUserProfile, 
   updateUserProfile,
-  getUserDashboard
+  getUserDashboard,
+  getUserById  // ✅ Add this import
 } from '../controllers/userController.js';
 import { authenticateJWT } from '../middleware/authenticateJWT.js';
 
@@ -20,5 +21,8 @@ router.patch('/profile', authenticateJWT, updateUserProfile);
 
 // Dashboard route with all statistics (authenticated)
 router.get('/dashboard', authenticateJWT, getUserDashboard);
+
+// ✅ Get user by ID (for chat - no auth needed)
+router.get('/:id', getUserById);
 
 export default router;

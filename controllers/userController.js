@@ -176,3 +176,29 @@ export const getUserDashboard = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Get User by ID (for chat feature)
+export const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🔍 Fetching user with ID:', id);
+    
+    const user = await User.findById(id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('❌ Error fetching user:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
