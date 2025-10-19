@@ -1,5 +1,4 @@
 import { Appointment } from '../models/Appointment.js';
-
 import mongoose from 'mongoose';
 
 // Helper to format time slots
@@ -40,7 +39,6 @@ export const getAvailableSlots = async (req, res) => {
     res.json({ availableSlots });
 
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -51,7 +49,6 @@ export const bookAppointment = async (req, res) => {
     const { doctorId } = req.params;
     const { scheduledFor, notes } = req.body;
 
-    // FIX: Extract userId from JWT token (set by authenticateJWT middleware)
     const userId = req.user.userId || req.user.id || req.user._id;
     
     if (!userId) {
@@ -63,7 +60,6 @@ export const bookAppointment = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format" });
     }
 
-    // Check if slot already booked
     const existing = await Appointment.findOne({
       doctor: doctorId,
       scheduledFor: appointmentDate,
@@ -72,7 +68,7 @@ export const bookAppointment = async (req, res) => {
     if (existing) return res.status(400).json({ message: "Slot already booked" });
 
     const appointment = await Appointment.create({
-      user: userId, // Use userId from JWT token
+      user: userId,
       doctor: doctorId,
       scheduledFor: appointmentDate,
       notes,
@@ -88,7 +84,6 @@ export const bookAppointment = async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({ message: "This slot is already booked" });
     }
-    console.error("Error booking appointment:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -97,7 +92,7 @@ export const bookAppointment = async (req, res) => {
 export const approveAppointment = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const { approve } = req.body;  // true = approve, false = reject
+    const { approve } = req.body;
 
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });
@@ -111,7 +106,6 @@ export const approveAppointment = async (req, res) => {
 
     res.json({ message: `Appointment ${approve ? "approved" : "rejected"} successfully`, appointment });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -132,7 +126,6 @@ export const cancelAppointment = async (req, res) => {
 
     res.json({ message: "Appointment cancelled successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -140,7 +133,6 @@ export const cancelAppointment = async (req, res) => {
 // Get appointments for a user
 export const getUserAppointments = async (req, res) => {
   try {
-    // FIX: Extract userId from JWT token instead of URL params
     const userId = req.user.userId || req.user.id || req.user._id;
 
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
@@ -150,10 +142,8 @@ export const getUserAppointments = async (req, res) => {
     const appointments = await Appointment.find({ user: userId })
       .populate('doctor', 'name specialty');
 
-    // Don't return 404 for empty arrays, just return empty array
     res.json({ appointments: appointments || [] });
   } catch (error) {
-    console.error('Error in getUserAppointments:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -161,24 +151,19 @@ export const getUserAppointments = async (req, res) => {
 // Get appointments for a doctor including pending and booked
 export const getDoctorAppointments = async (req, res) => {
   try {
-    // FIX: Extract doctorId from JWT token
     const doctorId = req.user.doctorId || req.user.id || req.user._id;
     
     if (!doctorId) {
       return res.status(401).json({ message: "Doctor ID not found in token" });
     }
 
-    console.log("Doctor ID being queried:", doctorId);
-
     const appointments = await Appointment.find({
       doctor: new mongoose.Types.ObjectId(doctorId),
       status: { $in: ["pending", "booked"] }
     }).populate('user', 'name email');
 
-    console.log("Appointments found:", appointments.length);
     res.json({ appointments: appointments || [] });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -190,7 +175,6 @@ export const deleteAppointment = async (req, res) => {
     await Appointment.findByIdAndDelete(id);
     res.json({ message: "Appointment deleted successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };

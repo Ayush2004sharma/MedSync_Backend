@@ -16,7 +16,6 @@ export const registerUser = async (req, res) => {
     await user.save();
 
     res.status(201).json({ message: 'User registered successfully' });
-    console.log('User registered:', user);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -72,7 +71,6 @@ export const updateUserProfile = async (req, res) => {
     );
     
     if (!updated) {
-      console.error("User not found for update");
       return res.status(404).json({ message: 'User not found' });
     }
     
@@ -158,7 +156,7 @@ export const getUserDashboard = async (req, res) => {
         gender: user.gender,
         address: user.address,
         image: user.image,
-        location: user.location, // Include location
+        location: user.location,
         createdAt: user.createdAt
       },
       statistics: {
@@ -175,7 +173,6 @@ export const getUserDashboard = async (req, res) => {
 
     res.json(dashboard);
   } catch (err) {
-    console.error('Error fetching dashboard:', err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -119,10 +119,10 @@ export const getAllDoctors = async (req, res) => {
   }
 };
 
-// NEW: Search doctors by proximity (within 5km radius)
+// Search doctors by proximity (within 5km radius)
 export const searchDoctorsByProximity = async (req, res) => {
   try {
-    const { longitude, latitude, specialty, maxDistance = 5000 } = req.query; // maxDistance in meters (default 5km)
+    const { longitude, latitude, specialty, maxDistance = 5000 } = req.query;
 
     // Validate coordinates
     if (!longitude || !latitude) {
@@ -146,7 +146,7 @@ export const searchDoctorsByProximity = async (req, res) => {
             type: 'Point',
             coordinates: [lng, lat]
           },
-          $maxDistance: parseInt(maxDistance) // in meters
+          $maxDistance: parseInt(maxDistance)
         }
       }
     };
@@ -168,7 +168,7 @@ export const searchDoctorsByProximity = async (req, res) => {
 
       return {
         ...doctor.toObject(),
-        distance: parseFloat(distance.toFixed(2)) // distance in km
+        distance: parseFloat(distance.toFixed(2))
       };
     });
 
@@ -181,7 +181,7 @@ export const searchDoctorsByProximity = async (req, res) => {
   }
 };
 
-// NEW: Advanced search with aggregation pipeline (includes distance calculation)
+// Advanced search with aggregation pipeline (includes distance calculation)
 export const searchDoctorsAdvanced = async (req, res) => {
   try {
     const { longitude, latitude, specialty, maxDistance = 5000 } = req.query;
@@ -204,9 +204,9 @@ export const searchDoctorsAdvanced = async (req, res) => {
             coordinates: [lng, lat]
           },
           distanceField: 'distance',
-          maxDistance: parseInt(maxDistance), // meters
+          maxDistance: parseInt(maxDistance),
           spherical: true,
-          distanceMultiplier: 0.001 // Convert to kilometers
+          distanceMultiplier: 0.001
         }
       }
     ];
@@ -239,7 +239,7 @@ export const searchDoctorsAdvanced = async (req, res) => {
 
 // Helper function: Calculate distance between two coordinates (Haversine formula)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in kilometers
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   
@@ -249,7 +249,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in km
+  return R * c;
 }
 
 function toRad(degrees) {
@@ -257,13 +257,10 @@ function toRad(degrees) {
 }
 
 // Get unique specialties
-// Get unique specialties (simpler version)
 export const getSpecialties = async (req, res) => {
   try {
-    // Get all doctors
     const doctors = await Doctor.find({}, 'specialty');
     
-    // Extract unique specialties
     const specialtiesSet = new Set();
     doctors.forEach(doc => {
       if (doc.specialty && doc.specialty.trim() !== '') {
@@ -271,31 +268,23 @@ export const getSpecialties = async (req, res) => {
       }
     });
     
-    // Convert to sorted array
     const specialties = Array.from(specialtiesSet).sort();
     
-    console.log('📋 Available specialties:', specialties);
     res.json(specialties);
   } catch (err) {
-    console.error('❌ Error fetching specialties:', err);
     res.status(500).json({ message: err.message });
   }
 };
 
-
-// Get specialties with average ratings (calculated from reviews array)
-// Get top 5 specialties with highest average ratings
-// Get top 5 specialties with ratings AND one representative doctor from each
+// Get top 5 specialties with ratings and representative doctor from each
 export const getSpecialtiesWithRatings = async (req, res) => {
   try {
     const specialtiesData = await Doctor.aggregate([
-      // Step 1: Handle missing/null reviews arrays
       {
         $addFields: {
           reviewsArray: { $ifNull: ["$reviews", []] }
         }
       },
-      // Step 2: Calculate average rating for each doctor
       {
         $addFields: {
           avgRating: {
@@ -307,38 +296,31 @@ export const getSpecialtiesWithRatings = async (req, res) => {
           }
         }
       },
-      // Step 3: Sort doctors by rating (highest first)
       {
         $sort: { avgRating: -1, createdAt: -1 }
       },
-      // Step 4: Group by specialty and get the FIRST (highest rated) doctor
       {
         $group: {
           _id: '$specialty',
           avgRating: { $avg: '$avgRating' },
           totalDoctors: { $sum: 1 },
           totalReviews: { $sum: { $size: "$reviewsArray" } },
-          // Get the first (highest rated) doctor's details
           doctorId: { $first: '$_id' },
           doctorName: { $first: '$name' },
           doctorImage: { $first: '$profilePic' }
         }
       },
-      // Step 5: Filter out empty specialties
       {
         $match: {
           _id: { $ne: null, $ne: '' }
         }
       },
-      // Step 6: Sort by specialty rating (highest first)
       {
         $sort: { avgRating: -1 }
       },
-      // Step 7: Limit to top 5 specialties
       {
         $limit: 5
       },
-      // Step 8: Format output
       {
         $project: {
           _id: 0,
@@ -353,12 +335,8 @@ export const getSpecialtiesWithRatings = async (req, res) => {
       }
     ]);
 
-    console.log('📊 Top 5 Specialties with representative doctors:', specialtiesData);
     res.json(specialtiesData);
   } catch (err) {
-    console.error('❌ Error fetching specialties with ratings:', err);
     res.status(500).json({ message: err.message });
   }
 };
-
-
