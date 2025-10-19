@@ -16,7 +16,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://med-sync-sigma.vercel.app/'
+  'https://med-sync-sigma.vercel.app'
 ];
 
 
